@@ -1,6 +1,6 @@
 <h1> こんにちは 👋✨ </h1>
 
-<div style="margin-right: 20px;">
+<div>
   <img align="right" height="100" width="100" src="./images/badage.gif" alt="Badage Animation" />
 </div>
 
