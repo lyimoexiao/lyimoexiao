@@ -16,8 +16,8 @@ I'm  <b>Lyi.</b> from China.
 ### 📊 My Stats
 
 <p align="center">
-  <img height="150" src="https://github-readme-stats.vercel.app/api?username=lyimoexiao&show_icons=true&theme=transparent" />
-  <img height="150" src="https://github-readme-stats.vercel.app/api/top-langs/?username=lyimoexiao&layout=compact&theme=transparent" />
+  <img height="120" src="https://github-readme-stats.vercel.app/api?username=lyimoexiao&show_icons=true&theme=transparent" />
+  <img height="120" src="https://github-readme-stats.vercel.app/api/top-langs/?username=lyimoexiao&layout=compact&theme=transparent" />
 </p>
 
 ### 🛠️ My Skills
