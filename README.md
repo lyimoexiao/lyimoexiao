@@ -1,7 +1,7 @@
 <h1> こんにちは 👋✨ </h1>
 
 <div style="margin-right: 20px;">
-  <img align="right" height="100" src="./images/badage.gif" alt="Badage Animation" />
+  <img align="right" height="100" width="100" src="./images/badage.gif" alt="Badage Animation" />
 </div>
 
 <h3>🌸 About Me</h3>
