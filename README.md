@@ -5,7 +5,8 @@
 </div>
 
 <h3>🧐 About Me</h3>
-I'm  <b>Lyi.</b> from China.
+<p>I'm  <b>Lyi.</b> from China.</p>
+
 <div>
   <p>🎓 I’m a <b>Software Technology undergraduate student</b> 📚, focusing on <b>Application Software & System Development</b> ⚙️.</p>
   <p>💻 Alongside development, I’m also studying <b>Computer Networking</b> 🌐 and <b>Cloud Computing</b> ☁️ technologies.</p>
@@ -19,6 +20,7 @@ I'm  <b>Lyi.</b> from China.
   <img height="120" src="https://github-readme-stats.vercel.app/api?username=lyimoexiao&show_icons=true&theme=transparent" />
   <img height="120" src="https://github-readme-stats.vercel.app/api/top-langs/?username=lyimoexiao&layout=compact&theme=transparent" />
 </p>
+
 
 ### 🛠️ My Skills
 
