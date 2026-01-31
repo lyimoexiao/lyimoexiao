@@ -17,8 +17,8 @@
 ### 📊 My Stats
 
 <p align="center">
-  <img height="120" src="https://github-readme-stats.vercel.app/api?username=lyimoexiao&show_icons=true&theme=github_dark" />
-  <img height="120" src="https://github-readme-stats.vercel.app/api/top-langs/?username=lyimoexiao&layout=compact&theme=github_dark" />
+  <img height="120" src="./images/stats.svg" />
+  <img height="120" src="./images/langs.svg" />
 </p>
 
 
