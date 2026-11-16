@@ -22,64 +22,89 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # `fail_on_error: true` makes the action throw instead of writing the
-      # "Something went wrong" placeholder, so a failed render never overwrites
-      # a good card on disk.
+      # Reject the PAT when it is missing, expired or out of quota, so a dead
+      # token can never silently produce "Something went wrong" cards.
+      - name: Resolve token
+        id: token
+        env:
+          PAT: ${{ secrets.GH_PERSONAL_TOKEN }}
+        run: |
+          token="${{ github.token }}"
+          if [ -n "$PAT" ]; then
+            limits=$(curl -fsS -H "Authorization: Bearer $PAT" \
+              https://api.github.com/rate_limit 2>/dev/null || true)
+            if [ -z "$limits" ]; then
+              echo "::warning::GH_PERSONAL_TOKEN is invalid or expired — using GITHUB_TOKEN"
+            elif echo "$limits" | grep -qE '"remaining":0'; then
+              echo "::warning::GH_PERSONAL_TOKEN is rate limited — using GITHUB_TOKEN"
+            else
+              token="$PAT"
+            fi
+          else
+            echo "::warning::GH_PERSONAL_TOKEN is not set — using GITHUB_TOKEN"
+          fi
+          echo "value=$token" >> "$GITHUB_OUTPUT"
+
       - name: Generate stats card
-        id: stats
-        continue-on-error: true
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: stats
           options: ${{ env.STATS_OPTIONS }}
           path: images/stats.svg
-          token: ${{ secrets.GH_PERSONAL_TOKEN }}
-          fail_on_error: true
+          token: ${{ steps.token.outputs.value }}
 
       - name: Generate top langs card
-        id: langs
-        continue-on-error: true
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: top-langs
           options: ${{ env.LANGS_OPTIONS }}
           path: images/langs.svg
-          token: ${{ secrets.GH_PERSONAL_TOKEN }}
-          fail_on_error: true
+          token: ${{ steps.token.outputs.value }}
 
-      # Fallback: the PAT may be expired or rate limited, while the workflow's
-      # own GITHUB_TOKEN still works for public data.
+      - name: Detect error cards
+        id: detect
+        run: |
+          broken=0
+          for file in images/stats.svg images/langs.svg; do
+            if grep -q "Something went wrong" "$file"; then
+              broken=1
+              echo "::warning file=$file::Card rendered with an error placeholder"
+            fi
+          done
+          echo "broken=$broken" >> "$GITHUB_OUTPUT"
+
+      # Second chance with the workflow token (works for public data even when
+      # the personal token is exhausted).
       - name: Retry stats card with GITHUB_TOKEN
-        id: stats_retry
-        if: steps.stats.outcome == 'failure'
+        if: steps.detect.outputs.broken == '1'
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: stats
           options: ${{ env.STATS_OPTIONS }}
           path: images/stats.svg
           token: ${{ github.token }}
-          fail_on_error: true
 
       - name: Retry top langs card with GITHUB_TOKEN
-        id: langs_retry
-        if: steps.langs.outcome == 'failure'
+        if: steps.detect.outputs.broken == '1'
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: top-langs
           options: ${{ env.LANGS_OPTIONS }}
           path: images/langs.svg
           token: ${{ github.token }}
-          fail_on_error: true
 
+      # Never let a broken card reach the README: restore the committed version.
       - name: Verify cards are valid
         run: |
           status=0
           for file in images/stats.svg images/langs.svg; do
             if ! grep -q "<svg" "$file"; then
               echo "::error file=$file::$file is missing or not an SVG"
+              git checkout -- "$file" 2>/dev/null || true
               status=1
             elif grep -q "Something went wrong" "$file"; then
-              echo "::error file=$file::$file contains the error placeholder"
+              echo "::error file=$file::$file still contains the error placeholder; keeping the committed version"
+              git checkout -- "$file"
               status=1
             fi
           done
