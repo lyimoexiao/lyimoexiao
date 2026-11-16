@@ -5,32 +5,94 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: update-readme-cards
+  cancel-in-progress: false
+
+env:
+  STATS_OPTIONS: username=${{ github.repository_owner }}&show_icons=true&theme=github_dark
+  LANGS_OPTIONS: username=${{ github.repository_owner }}&layout=compact&theme=github_dark
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # `fail_on_error: true` makes the action throw instead of writing the
+      # "Something went wrong" placeholder, so a failed render never overwrites
+      # a good card on disk.
       - name: Generate stats card
+        id: stats
+        continue-on-error: true
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: stats
-          options: username=${{ github.repository_owner }}&show_icons=true&theme=github_dark
+          options: ${{ env.STATS_OPTIONS }}
           path: images/stats.svg
           token: ${{ secrets.GH_PERSONAL_TOKEN }}
+          fail_on_error: true
 
       - name: Generate top langs card
+        id: langs
+        continue-on-error: true
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: top-langs
-          options: username=${{ github.repository_owner }}&layout=compact&theme=github_dark
+          options: ${{ env.LANGS_OPTIONS }}
           path: images/langs.svg
           token: ${{ secrets.GH_PERSONAL_TOKEN }}
+          fail_on_error: true
+
+      # Fallback: the PAT may be expired or rate limited, while the workflow's
+      # own GITHUB_TOKEN still works for public data.
+      - name: Retry stats card with GITHUB_TOKEN
+        id: stats_retry
+        if: steps.stats.outcome == 'failure'
+        uses: readme-tools/github-readme-stats-action@v1
+        with:
+          card: stats
+          options: ${{ env.STATS_OPTIONS }}
+          path: images/stats.svg
+          token: ${{ github.token }}
+          fail_on_error: true
+
+      - name: Retry top langs card with GITHUB_TOKEN
+        id: langs_retry
+        if: steps.langs.outcome == 'failure'
+        uses: readme-tools/github-readme-stats-action@v1
+        with:
+          card: top-langs
+          options: ${{ env.LANGS_OPTIONS }}
+          path: images/langs.svg
+          token: ${{ github.token }}
+          fail_on_error: true
+
+      - name: Verify cards are valid
+        run: |
+          status=0
+          for file in images/stats.svg images/langs.svg; do
+            if ! grep -q "<svg" "$file"; then
+              echo "::error file=$file::$file is missing or not an SVG"
+              status=1
+            elif grep -q "Something went wrong" "$file"; then
+              echo "::error file=$file::$file contains the error placeholder"
+              status=1
+            fi
+          done
+          exit $status
 
       - name: Commit cards
         run: |
+          if git diff --quiet -- images/stats.svg images/langs.svg; then
+            echo "Cards unchanged, nothing to commit."
+            exit 0
+          fi
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add images/*.svg
-          git commit -m "workflow: Update README cards" || exit 0
+          git add images/stats.svg images/langs.svg
+          git commit -m "workflow: Update README cards"
           git push
