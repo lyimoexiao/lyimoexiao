@@ -13,8 +13,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  STATS_OPTIONS: username=${{ github.repository_owner }}&show_icons=true&theme=github_dark
-  LANGS_OPTIONS: username=${{ github.repository_owner }}&layout=compact&theme=github_dark
+  # Explicit palettes keep both themes the same size and match GitHub's UI colors.
+  DARK_PALETTE: bg_color=0d1117&title_color=58a6ff&icon_color=1f6feb&text_color=c9d1d9&border_color=30363d
+  LIGHT_PALETTE: bg_color=ffffff&title_color=0969da&icon_color=1f6feb&text_color=24292f&border_color=d0d7de
+  STATS_BASE: username=${{ github.repository_owner }}&show_icons=true&border_radius=10&disable_animations=true&card_width=430
+  LANGS_BASE: username=${{ github.repository_owner }}&layout=compact&langs_count=8&border_radius=10&disable_animations=true&card_width=430
 
 jobs:
   build:
@@ -51,20 +54,36 @@ jobs:
 
           echo "value=$PAT" >> "$GITHUB_OUTPUT"
 
-      - name: Generate stats card
+      - name: Generate stats card (dark)
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: stats
-          options: ${{ env.STATS_OPTIONS }}
-          path: images/stats.svg
+          options: ${{ env.STATS_BASE }}&${{ env.DARK_PALETTE }}
+          path: images/stats-dark.svg
           token: ${{ steps.token.outputs.value }}
 
-      - name: Generate top langs card
+      - name: Generate stats card (light)
+        uses: readme-tools/github-readme-stats-action@v1
+        with:
+          card: stats
+          options: ${{ env.STATS_BASE }}&${{ env.LIGHT_PALETTE }}
+          path: images/stats-light.svg
+          token: ${{ steps.token.outputs.value }}
+
+      - name: Generate top langs card (dark)
         uses: readme-tools/github-readme-stats-action@v1
         with:
           card: top-langs
-          options: ${{ env.LANGS_OPTIONS }}
-          path: images/langs.svg
+          options: ${{ env.LANGS_BASE }}&${{ env.DARK_PALETTE }}
+          path: images/langs-dark.svg
+          token: ${{ steps.token.outputs.value }}
+
+      - name: Generate top langs card (light)
+        uses: readme-tools/github-readme-stats-action@v1
+        with:
+          card: top-langs
+          options: ${{ env.LANGS_BASE }}&${{ env.LIGHT_PALETTE }}
+          path: images/langs-light.svg
           token: ${{ steps.token.outputs.value }}
 
       # The action writes an error placeholder instead of failing on API errors,
@@ -72,7 +91,7 @@ jobs:
       - name: Verify cards are valid
         run: |
           status=0
-          for file in images/stats.svg images/langs.svg; do
+          for file in images/stats-dark.svg images/stats-light.svg images/langs-dark.svg images/langs-light.svg; do
             if ! grep -q "<svg" "$file"; then
               echo "::error file=$file::$file is missing or not a valid SVG"
               git checkout -- "$file" 2>/dev/null || true
@@ -87,12 +106,12 @@ jobs:
 
       - name: Commit cards
         run: |
-          if git diff --quiet -- images/stats.svg images/langs.svg; then
+          if git diff --quiet -- images/; then
             echo "Cards unchanged, nothing to commit."
             exit 0
           fi
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add images/stats.svg images/langs.svg
+          git add images/
           git commit -m "workflow: Update README cards"
           git push

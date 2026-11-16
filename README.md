@@ -17,8 +17,16 @@
 ### 📊 My Stats
 
 <p align="center">
-  <img height="120" src="./images/stats.svg" />
-  <img height="120" src="./images/langs.svg" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./images/stats-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="./images/stats-light.svg" />
+    <img height="160" alt="GitHub stats" src="./images/stats-light.svg" />
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./images/langs-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="./images/langs-light.svg" />
+    <img height="160" alt="Most used languages" src="./images/langs-light.svg" />
+  </picture>
 </p>
 
 
