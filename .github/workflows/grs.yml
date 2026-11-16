@@ -22,28 +22,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Reject the PAT when it is missing, expired or out of quota, so a dead
-      # token can never silently produce "Something went wrong" cards.
-      - name: Resolve token
+      # Validating the token up front keeps a dead/rate-limited token from
+      # rendering "Something went wrong" cards into the README.
+      - name: Validate token
         id: token
         env:
           PAT: ${{ secrets.GH_PERSONAL_TOKEN }}
         run: |
-          token="${{ github.token }}"
-          if [ -n "$PAT" ]; then
-            limits=$(curl -fsS -H "Authorization: Bearer $PAT" \
-              https://api.github.com/rate_limit 2>/dev/null || true)
-            if [ -z "$limits" ]; then
-              echo "::warning::GH_PERSONAL_TOKEN is invalid or expired — using GITHUB_TOKEN"
-            elif echo "$limits" | grep -qE '"remaining":0'; then
-              echo "::warning::GH_PERSONAL_TOKEN is rate limited — using GITHUB_TOKEN"
-            else
-              token="$PAT"
-            fi
-          else
-            echo "::warning::GH_PERSONAL_TOKEN is not set — using GITHUB_TOKEN"
+          if [ -z "$PAT" ]; then
+            echo "::error::GH_PERSONAL_TOKEN secret is missing. Add a PAT with the 'repo' and 'read:user' scopes."
+            exit 1
           fi
-          echo "value=$token" >> "$GITHUB_OUTPUT"
+
+          limits=$(curl -sS -o /tmp/limits.json -w "%{http_code}" \
+            -H "Authorization: Bearer $PAT" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/rate_limit || true)
+
+          if [ "$limits" != "200" ]; then
+            echo "::error::GH_PERSONAL_TOKEN is invalid or expired (HTTP $limits). Create a new PAT with the 'repo' and 'read:user' scopes and update the secret."
+            exit 1
+          fi
+
+          if grep -qE '"(core|graphql)":\{[^}]*"remaining":0' /tmp/limits.json; then
+            echo "::error::GH_PERSONAL_TOKEN is currently rate limited. Cards will be regenerated on the next scheduled run."
+            exit 1
+          fi
+
+          echo "value=$PAT" >> "$GITHUB_OUTPUT"
 
       - name: Generate stats card
         uses: readme-tools/github-readme-stats-action@v1
@@ -61,49 +67,18 @@ jobs:
           path: images/langs.svg
           token: ${{ steps.token.outputs.value }}
 
-      - name: Detect error cards
-        id: detect
-        run: |
-          broken=0
-          for file in images/stats.svg images/langs.svg; do
-            if grep -q "Something went wrong" "$file"; then
-              broken=1
-              echo "::warning file=$file::Card rendered with an error placeholder"
-            fi
-          done
-          echo "broken=$broken" >> "$GITHUB_OUTPUT"
-
-      # Second chance with the workflow token (works for public data even when
-      # the personal token is exhausted).
-      - name: Retry stats card with GITHUB_TOKEN
-        if: steps.detect.outputs.broken == '1'
-        uses: readme-tools/github-readme-stats-action@v1
-        with:
-          card: stats
-          options: ${{ env.STATS_OPTIONS }}
-          path: images/stats.svg
-          token: ${{ github.token }}
-
-      - name: Retry top langs card with GITHUB_TOKEN
-        if: steps.detect.outputs.broken == '1'
-        uses: readme-tools/github-readme-stats-action@v1
-        with:
-          card: top-langs
-          options: ${{ env.LANGS_OPTIONS }}
-          path: images/langs.svg
-          token: ${{ github.token }}
-
-      # Never let a broken card reach the README: restore the committed version.
+      # The action writes an error placeholder instead of failing on API errors,
+      # so restore the committed card whenever that happens.
       - name: Verify cards are valid
         run: |
           status=0
           for file in images/stats.svg images/langs.svg; do
             if ! grep -q "<svg" "$file"; then
-              echo "::error file=$file::$file is missing or not an SVG"
+              echo "::error file=$file::$file is missing or not a valid SVG"
               git checkout -- "$file" 2>/dev/null || true
               status=1
             elif grep -q "Something went wrong" "$file"; then
-              echo "::error file=$file::$file still contains the error placeholder; keeping the committed version"
+              echo "::error file=$file::Card generation failed; keeping the last good version"
               git checkout -- "$file"
               status=1
             fi
